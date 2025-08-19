@@ -8,16 +8,11 @@ const Charge = ({ user, onLogout }) => {
 
     useEffect(() => {
         const script = document.createElement('script');
-        script.src = 'https://js.tosspayments.com/v1';
+        script.src = 'https://js.tosspayments.com/v2/standard';
         script.async = true;
         document.body.appendChild(script);
         return () => document.body.removeChild(script);
     }, []);
-
-    // UUID 생성 함수
-    const generateOrderId = () => {
-        return 'order-' + crypto.randomUUID();
-    };
 
     const handlePayment = async (amount) => {
         console.log('🚀 결제 시작:', { amount });
@@ -25,35 +20,58 @@ const Charge = ({ user, onLogout }) => {
         setMessage('');
 
         try {
-            // 1. orderId 프론트엔드에서 직접 생성
-            const orderId = generateOrderId();
-            console.log('🆔 생성된 orderId:', orderId);
+            // 1. 서버에 결제 준비 요청 (토스 권장사항)
+            console.log('📝 결제 준비 API 호출...');
+            const prepareResponse = await fetch('/api/payments/prepare', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('accessToken')}`
+                },
+                body: JSON.stringify({
+                    amount: amount
+                })
+            });
 
-            // 2. 토스 페이먼츠 파라미터 준비
-            const tossParams = {
-                amount,
-                orderId: orderId,
-                orderName: `포인트 ${amount.toLocaleString()}원 충전`
-            };
-            console.log('💳 토스 결제 파라미터:', tossParams);
+            if (!prepareResponse.ok) {
+                const errorData = await prepareResponse.json();
+                throw new Error(errorData.message || '결제 준비 실패');
+            }
 
-            // 3. 토스 페이먼츠 객체 확인
-            console.log('🏪 TossPayments 객체:', {
-                exists: !!window.TossPayments,
-                type: typeof window.TossPayments
+            const apiResponse = await prepareResponse.json();
+            const prepareData = apiResponse.data; // ApiResponse 구조에서 실제 데이터 추출
+            console.log('✅ 결제 준비 완료:', prepareData);
+
+            // 2. 토스 페이먼츠 v1로 결제 요청 (서버에서 받은 정보 사용)
+            console.log('💳 토스 결제 파라미터:', {
+                amount: prepareData.amount,
+                orderId: prepareData.orderId,
+                orderName: prepareData.orderName
             });
 
             if (window.TossPayments) {
-                console.log('💳 토스 페이먼츠 초기화 중...');
+                console.log('💳 토스 페이먼츠 v2 초기화 중...');
                 const tossPayments = window.TossPayments('test_ck_KNbdOvk5rkOOXMabGXRqrn07xlzm');
 
+                // customerKey를 규칙에 맞게 생성
+                const customerKey = `user-${user.replace(/[^a-zA-Z0-9\-*=.@]/g, '')}`;
+                console.log('생성된 customerKey:', customerKey); // 👈 디버깅용
+
+                const payment = tossPayments.payment({
+                    customerKey: customerKey // ← 수정된 부분
+                });
+
                 console.log('💳 결제 요청 시작...');
-                await tossPayments.requestPayment('카드', {
-                    amount: tossParams.amount,
-                    orderId: tossParams.orderId,
-                    orderName: tossParams.orderName,
-                    successUrl: `http://localhost:3000/payments/success`,
-                    failUrl: `http://localhost:3000/payments/fail`
+                await payment.requestPayment({
+                    method: 'CARD',
+                    amount: {
+                        currency: 'KRW',
+                        value: prepareData.amount
+                    },
+                    orderId: prepareData.orderId,
+                    orderName: prepareData.orderName,
+                    successUrl: `http://localhost:3001/payments/success`,
+                    failUrl: `http://localhost:3001/payments/fail`
                 });
                 console.log('✅ 결제 요청 완료');
             } else {
@@ -67,7 +85,18 @@ const Charge = ({ user, onLogout }) => {
                 message: err.message,
                 stack: err.stack
             });
-            setMessage(`결제 오류: ${err.message}`);
+
+            // 사용자 친화적 에러 메시지
+            let userMessage = '결제 중 오류가 발생했습니다.';
+            if (err.message.includes('준비')) {
+                userMessage = '결제 준비 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.';
+            } else if (err.message.includes('취소')) {
+                userMessage = '결제가 취소되었습니다.';
+            } else if (err.message.includes('로드')) {
+                userMessage = 'TossPayments 라이브러리가 로드되지 않았습니다.';
+            }
+
+            setMessage(userMessage);
         } finally {
             console.log('🏁 결제 프로세스 종료');
             setLoading(false);
@@ -132,6 +161,12 @@ const Charge = ({ user, onLogout }) => {
                     <div className="message-box error">
                         <span className="message-icon">⚠️</span>
                         {message}
+                        <button
+                            className="retry-button"
+                            onClick={() => window.location.reload()}
+                        >
+                            🔄 새로고침
+                        </button>
                     </div>
                 )}
 
@@ -140,7 +175,8 @@ const Charge = ({ user, onLogout }) => {
                     <div className="loading-overlay">
                         <div className="loading-content">
                             <div className="loading-spinner"></div>
-                            <p>결제창을 열고 있습니다...</p>
+                            <p>결제 준비 중입니다...</p>
+                            <small>서버에서 결제 정보를 검증하고 있어요</small>
                         </div>
                     </div>
                 )}
@@ -149,10 +185,10 @@ const Charge = ({ user, onLogout }) => {
                 <div className="charge-notice">
                     <h4>💡 충전 안내</h4>
                     <ul>
-                        <li>충전된 포인트는 즉시 사용 가능합니다</li>
-                        <li>결제는 토스페이먼츠를 통해 안전하게 처리됩니다</li>
-                        <li>테스트 환경에서는 실제 결제가 발생하지 않습니다</li>
-                        <li>🆕 이제 더 빠른 결제 경험을 제공합니다!</li>
+                        <li>✅ 모든 결제 정보는 서버에서 안전하게 검증됩니다</li>
+                        <li>🔒 토스페이먼츠를 통해 안전하게 처리됩니다</li>
+                        <li>⚡ 충전된 포인트는 즉시 사용 가능합니다</li>
+                        <li>🧪 테스트 환경에서는 실제 결제가 발생하지 않습니다</li>
                     </ul>
                 </div>
             </div>
