@@ -7,42 +7,61 @@ import Success from './Success';
 import Fail from "./Fail";
 
 function App() {
-  const [user, setUser] = useState(null);
+    const [user, setUser] = useState(null);
 
-  useEffect(() => {
-    const token = localStorage.getItem('accessToken');
-    if (token) {
-      setUser('사용자');
-    }
-  }, []);
+    useEffect(() => {
+        // 1. URL 파라미터에서 사용자 정보 확인 (결제 후 돌아온 경우)
+        const urlParams = new URLSearchParams(window.location.search);
+        const userFromUrl = urlParams.get('user');
 
-  const handleLogin = (email) => {
-    setUser(email.split('@')[0] || email);
-  };
+        if (userFromUrl) {
+            // 결제 후 돌아온 경우, URL의 사용자 정보로 상태 복원
+            setUser(decodeURIComponent(userFromUrl));
+            // URL 파라미터 정리 (브라우저 히스토리에서 제거)
+            window.history.replaceState({}, document.title, window.location.pathname);
+            return;
+        }
 
-  const handleLogout = () => {
-    localStorage.removeItem('accessToken');
-    setUser(null);
-  };
+        // 2. localStorage에서 사용자 정보 확인
+        const token = localStorage.getItem('accessToken');
+        const savedUser = localStorage.getItem('currentUser');
 
-  return (
-      <Router>
-        <Routes>
-          <Route
-              path="/"
-              element={
-                user ? (
-                    <Charge user={user} onLogout={handleLogout} />
-                ) : (
-                    <Login onLogin={handleLogin} />
-                )
-              }
-          />
-          <Route path="/payments/success" element={<Success />} />
-          <Route path="/payments/fail" element={<Fail />} />
-        </Routes>
-      </Router>
-  );
+        if (token && savedUser) {
+            setUser(savedUser);
+        }
+    }, []);
+
+    const handleLogin = (email) => {
+        const username = email.split('@')[0] || email;
+        setUser(username);
+        // 사용자 정보를 localStorage에도 저장
+        localStorage.setItem('currentUser', username);
+    };
+
+    const handleLogout = () => {
+        localStorage.removeItem('accessToken');
+        localStorage.removeItem('currentUser'); // 사용자 정보도 함께 제거
+        setUser(null);
+    };
+
+    return (
+        <Router>
+            <Routes>
+                <Route
+                    path="/"
+                    element={
+                        user ? (
+                            <Charge user={user} onLogout={handleLogout} />
+                        ) : (
+                            <Login onLogin={handleLogin} />
+                        )
+                    }
+                />
+                <Route path="/payments/success" element={<Success />} />
+                <Route path="/payments/fail" element={<Fail />} />
+            </Routes>
+        </Router>
+    );
 }
 
 export default App;

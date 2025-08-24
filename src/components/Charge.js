@@ -5,13 +5,48 @@ import './Charge.css';
 const Charge = ({ user, onLogout }) => {
     const [loading, setLoading] = useState(false);
     const [message, setMessage] = useState('');
+    const [pointBalance, setPointBalance] = useState(0);
+    const [balanceLoading, setBalanceLoading] = useState(true);
 
+    // 토스 페이먼츠 스크립트 로드
     useEffect(() => {
         const script = document.createElement('script');
         script.src = 'https://js.tosspayments.com/v2/standard';
         script.async = true;
         document.body.appendChild(script);
         return () => document.body.removeChild(script);
+    }, []);
+
+    // 포인트 잔액 조회
+    useEffect(() => {
+        const fetchPointBalance = async () => {
+            try {
+                setBalanceLoading(true);
+                const response = await fetch('/api/points', {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('accessToken')}`
+                    }
+                });
+
+                if (response.ok) {
+                    const apiResponse = await response.json();
+                    // ApiResponse 구조에서 실제 데이터 추출
+                    const balanceData = apiResponse.data;
+                    setPointBalance(balanceData.balance || 0);
+                } else {
+                    console.error('포인트 잔액 조회 실패:', response.status);
+                    setPointBalance(0); // 실패 시 0으로 표시
+                }
+            } catch (error) {
+                console.error('포인트 잔액 조회 에러:', error);
+                setPointBalance(0);
+            } finally {
+                setBalanceLoading(false);
+            }
+        };
+
+        fetchPointBalance();
     }, []);
 
     const handlePayment = async (amount) => {
@@ -39,10 +74,10 @@ const Charge = ({ user, onLogout }) => {
             }
 
             const apiResponse = await prepareResponse.json();
-            const prepareData = apiResponse.data; // ApiResponse 구조에서 실제 데이터 추출
+            const prepareData = apiResponse.data;
             console.log('✅ 결제 준비 완료:', prepareData);
 
-            // 2. 토스 페이먼츠 v1로 결제 요청 (서버에서 받은 정보 사용)
+            // 2. 토스 페이먼츠 v2로 결제 요청
             console.log('💳 토스 결제 파라미터:', {
                 amount: prepareData.amount,
                 orderId: prepareData.orderId,
@@ -55,10 +90,10 @@ const Charge = ({ user, onLogout }) => {
 
                 // customerKey를 규칙에 맞게 생성
                 const customerKey = `user-${user.replace(/[^a-zA-Z0-9\-*=.@]/g, '')}`;
-                console.log('생성된 customerKey:', customerKey); // 👈 디버깅용
+                console.log('생성된 customerKey:', customerKey);
 
                 const payment = tossPayments.payment({
-                    customerKey: customerKey // ← 수정된 부분
+                    customerKey: customerKey
                 });
 
                 console.log('💳 결제 요청 시작...');
@@ -70,8 +105,9 @@ const Charge = ({ user, onLogout }) => {
                     },
                     orderId: prepareData.orderId,
                     orderName: prepareData.orderName,
-                    successUrl: `http://localhost:3001/payments/success`,
-                    failUrl: `http://localhost:3001/payments/fail`
+                    // 🔥 수정된 부분: 사용자 정보를 URL에 포함
+                    successUrl: `${window.location.origin}/payments/success?user=${encodeURIComponent(user)}`,
+                    failUrl: `${window.location.origin}/payments/fail?user=${encodeURIComponent(user)}`
                 });
                 console.log('✅ 결제 요청 완료');
             } else {
@@ -124,11 +160,17 @@ const Charge = ({ user, onLogout }) => {
                     </button>
                 </div>
 
-                {/* 현재 포인트 (가상 데이터) */}
+                {/* 현재 포인트 (실제 API 데이터) */}
                 <div className="current-points">
                     <div className="points-info">
                         <span className="points-label">현재 보유 포인트</span>
-                        <span className="points-value">0 P</span>
+                        <span className="points-value">
+                            {balanceLoading ? (
+                                <span style={{color: '#999', fontSize: '0.9em'}}>로딩 중...</span>
+                            ) : (
+                                `${pointBalance.toLocaleString()} P`
+                            )}
+                        </span>
                     </div>
                     <div className="points-icon">🪙</div>
                 </div>
