@@ -14,7 +14,7 @@ const Login = ({ onLogin }) => {
         setLoading(true);
 
         try {
-            const response = await fetch('/api/accounts/login', {
+            const response = await fetch('http://3.36.220.104:8080/api/accounts/login', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email, password }),

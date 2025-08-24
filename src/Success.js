@@ -22,7 +22,7 @@ const Success = () => {
             console.log('API 호출 시작 - orderId:', orderId);
 
             try {
-                const response = await fetch('/api/payments/confirm', {
+                const response = await fetch('http://3.36.220.104:8080/api/payments/confirm', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
