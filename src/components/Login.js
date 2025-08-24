@@ -20,13 +20,15 @@ const Login = ({ onLogin }) => {
                 body: JSON.stringify({ email, password }),
             });
 
-            const authHeader = response.headers.get('Authorization');
-            if (!response.ok || !authHeader) {
+            if (!response.ok) {
                 throw new Error('로그인 실패');
             }
 
-            const token = authHeader.substring(7);
-            localStorage.setItem('accessToken', token);
+            const responseData = await response.json();
+
+            // 임시로 더미 토큰 저장 (나중에 백엔드에서 실제 토큰 제공하면 수정)
+            localStorage.setItem('accessToken', 'dummy-token-' + responseData.data.id);
+
             onLogin(email);
         } catch (err) {
             setError('로그인 실패! 아이디 또는 비밀번호를 확인해주세요.');
