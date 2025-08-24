@@ -22,7 +22,7 @@ const Charge = ({ user, onLogout }) => {
         const fetchPointBalance = async () => {
             try {
                 setBalanceLoading(true);
-                const response = await fetch('3.36.220.104/api/points', {
+                const response = await fetch('http://3.36.220.104:8080/api/points', {
                     method: 'GET',
                     headers: {
                         'Authorization': `Bearer ${localStorage.getItem('accessToken')}`
@@ -57,7 +57,7 @@ const Charge = ({ user, onLogout }) => {
         try {
             // 1. 서버에 결제 준비 요청 (토스 권장사항)
             console.log('📝 결제 준비 API 호출...');
-            const prepareResponse = await fetch('3.36.220.104/api/payments/prepare', {
+            const prepareResponse = await fetch('http://3.36.220.104:8080/api/payments/prepare', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
