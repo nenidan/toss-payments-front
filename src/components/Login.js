@@ -42,13 +42,19 @@ const Login = ({ onLogin }) => {
             const authHeader = response.headers.get('Authorization');
             const refreshToken = response.headers.get('Refresh-Token');
 
+            console.log('Auth header:', authHeader);
+            console.log('Refresh token:', refreshToken);
+
             if (authHeader) {
                 // Bearer 토큰에서 실제 토큰 부분만 추출
                 const token = authHeader.replace('Bearer ', '');
                 localStorage.setItem('accessToken', token);
+                console.log('Saved token:', token);
             } else {
-                // 헤더에 없으면 응답 데이터에서 찾기 (백엔드 구현에 따라)
-                localStorage.setItem('accessToken', 'temp-token-' + responseData.data.id);
+                // 헤더에 없으면 더미 토큰 (임시)
+                const dummyToken = 'temp-token-' + responseData.data.id;
+                localStorage.setItem('accessToken', dummyToken);
+                console.log('Using dummy token:', dummyToken);
             }
 
             if (refreshToken) {
